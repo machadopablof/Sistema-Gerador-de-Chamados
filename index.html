@@ -204,6 +204,27 @@
     padding: 36px 40px;
     overflow-y: auto;
     max-width: 760px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #btn-menu-toggle {
+    display: none;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
   }
 
   #page-title {
@@ -216,6 +237,14 @@
     font-size: 13px;
     color: var(--muted);
     margin-bottom: 28px;
+  }
+
+  #sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 900;
   }
 
   .tabs {
@@ -375,6 +404,44 @@
     flex-wrap: wrap;
   }
 
+  @media (max-width: 860px) {
+    #sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 85vw;
+      max-width: 320px;
+      z-index: 950;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      box-shadow: 2px 0 24px rgba(0,0,0,0.35);
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar-backdrop.open { display: block; }
+
+    #btn-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+
+    #main { padding: 20px 16px 40px; max-width: 100%; }
+
+    .card { padding: 18px 16px; }
+
+    .field-row { grid-template-columns: 1fr; }
+
+    .senha-row { flex-wrap: wrap; }
+
+    input.senha-display { min-width: 0; }
+
+    .modal-content { padding: 16px; }
+  }
+
+  @media (max-width: 420px) {
+    .tabs { width: 100%; }
+    .tab-btn { flex: 1; padding: 7px 8px; font-size: 12px; }
+    #page-title { font-size: 19px; }
+  }
+
 </style>
 </head>
 <body>
@@ -404,9 +471,16 @@
   </div>
 </aside>
 
+<div id="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+
 <main id="main">
-  <div id="page-title">Gerador de Chamados</div>
-  <div id="page-subtitle">Suporte Fiocruz — Reset de Senha & Criação de Usuário</div>
+  <div class="page-header">
+    <button id="btn-menu-toggle" onclick="toggleSidebar()" title="Abrir histórico" aria-label="Abrir histórico">☰</button>
+    <div>
+      <div id="page-title">Gerador de Chamados</div>
+      <div id="page-subtitle">Suporte Fiocruz — Reset de Senha & Criação de Usuário</div>
+    </div>
+  </div>
 
   <div class="tabs">
     <button class="tab-btn active" onclick="setTab('reset')">Reset de Senha</button>
@@ -679,12 +753,25 @@ ${item.texto}`;
   const modal = document.getElementById('logModal');
   modal.dataset.itemId = id;
   modal.style.display = 'flex';
+
+  if (window.innerWidth <= 860) toggleSidebar(false);
 }
 
 function fecharLog(event) {
   if (!event || event.target.id === 'logModal') {
     document.getElementById('logModal').style.display = 'none';
   }
+}
+
+// ---- Menu lateral (mobile) ----
+
+function toggleSidebar(forcarEstado) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const abrir = typeof forcarEstado === 'boolean' ? forcarEstado : !sidebar.classList.contains('open');
+
+  sidebar.classList.toggle('open', abrir);
+  backdrop.classList.toggle('open', abrir);
 }
 
 // ---- Tema claro/escuro ----
