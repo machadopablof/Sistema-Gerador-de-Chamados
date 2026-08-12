@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gerador de Chamados — Suporte Fiocruz</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --bg: #f5f4f1;
@@ -22,6 +23,19 @@
     --mono: 'Courier New', Courier, monospace;
     --sans: 'Segoe UI', system-ui, sans-serif;
     --radius: 10px;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #121119;
+    --surface: #1b1a27;
+    --accent: #818cf8;
+    --accent-light: #2f2a5c;
+    --accent-text: #c7d2fe;
+    --border: #322f49;
+    --text: #eeecf7;
+    --muted: #a7a5d1;
+    --success: #6ee7b7;
+    --success-bg: #08382c;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,19 +66,39 @@
     border-bottom: 1px solid rgba(255,255,255,0.07);
   }
 
+  #sidebar-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
   #sidebar-header h2 {
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: #9896c8;
-    margin-bottom: 4px;
   }
 
   #sidebar-header p {
     font-size: 11px;
-    color: #6a68a0;
+    color: #b4b2dc;
   }
+
+  #btn-theme-toggle {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #e0dff8;
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #btn-theme-toggle:hover { background: var(--sidebar-hover); }
 
   #history-list {
     flex: 1;
@@ -75,7 +109,7 @@
   .history-empty {
     padding: 24px 18px;
     font-size: 12px;
-    color: #6a68a0;
+    color: #b4b2dc;
     text-align: center;
     line-height: 1.6;
   }
@@ -112,7 +146,7 @@
 
   .hist-item-date {
     font-size: 10px;
-    color: #6a68a0;
+    color: #b4b2dc;
   }
 
   #sidebar-footer {
@@ -120,13 +154,47 @@
     border-top: 1px solid rgba(255,255,255,0.07);
   }
 
+  .drive-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #c4c3e8;
+    margin-bottom: 8px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6a68a0;
+    flex-shrink: 0;
+  }
+
+  .dot.conectado { background: #34d399; }
+  .dot.erro { background: #f87171; }
+
+  #btn-drive-connect {
+    width: 100%;
+    padding: 7px 0;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #c4c3e8;
+    font-size: 11px;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+
+  #btn-drive-connect:hover { background: var(--sidebar-hover); }
+
   #btn-clear-history {
     width: 100%;
     padding: 7px 0;
     background: transparent;
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px;
-    color: #6a68a0;
+    color: #b4b2dc;
     font-size: 11px;
     cursor: pointer;
   }
@@ -166,6 +234,7 @@
     border-radius: 7px;
     background: transparent;
     font-size: 13px;
+    color: var(--text);
     cursor: pointer;
   }
 
@@ -196,6 +265,7 @@
     padding: 10px 12px;
     font-size: 13px;
     background: var(--bg);
+    color: var(--text);
     outline: none;
   }
 
@@ -226,10 +296,10 @@
     margin-top: 12px;
   }
 
-  .senha-display {
+  input.senha-display {
     flex: 1;
     background: #0f172a;
-    color: #8B0000;
+    color: #f87171;
     font-weight: 700;
     font-family: monospace;
     font-size: 20px;
@@ -242,11 +312,14 @@
     padding: 8px 12px;
     border-radius: 8px;
     border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
   }
 
   .preview-box {
-    background: #f8f7f3;
+    background: var(--bg);
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
@@ -276,7 +349,8 @@
     justify-content:center;
   }
   .modal-content{
-    background:#fff;
+    background: var(--surface);
+    color: var(--text);
     width:min(800px,90vw);
     max-height:80vh;
     overflow:auto;
@@ -288,6 +362,17 @@
     cursor:pointer;
     font-size:22px;
     font-weight:bold;
+    color: var(--text);
+  }
+
+  .drive-log-area {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
   }
 
 </style>
@@ -296,7 +381,10 @@
 
 <aside id="sidebar">
   <div id="sidebar-header">
-    <h2>Histórico</h2>
+    <div id="sidebar-header-top">
+      <h2>Histórico</h2>
+      <button id="btn-theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro">🌙</button>
+    </div>
     <p id="hist-count">Nenhum chamado gerado</p>
   </div>
 
@@ -307,6 +395,11 @@
   </div>
 
   <div id="sidebar-footer">
+    <div class="drive-status">
+      <span id="drive-status-dot" class="dot"></span>
+      <span id="drive-status-text">Drive desconectado</span>
+    </div>
+    <button id="btn-drive-connect" onclick="conectarDrive()">Conectar Google Drive</button>
     <button id="btn-clear-history" onclick="clearHistory()">Limpar histórico</button>
   </div>
 </aside>
@@ -367,13 +460,28 @@
     <h3>Detalhes do Log</h3>
     <br>
     <div id="logConteudo" class="preview-box"></div>
+    <div id="logDriveArea" class="drive-log-area"></div>
   </div>
 </div>
 
 <script>
 const STORAGE_KEY = 'chamados_historico';
+const THEME_KEY = 'chamados_tema';
+
+// Configuração do Google Drive — veja o README para instruções de como
+// obter um Client ID e habilitar a API do Drive no Google Cloud Console.
+const GOOGLE_CLIENT_ID = 'SEU_CLIENT_ID_AQUI.apps.googleusercontent.com';
+const GOOGLE_DRIVE_FOLDER_ID = '1WrUxMv-tASmF0etoj8HLoIO4nKvTr4OD';
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FLAG_KEY = 'chamados_drive_conectado';
+
 let currentTab = 'reset';
 let currentSenha = '';
+
+let gTokenClient = null;
+let gAccessToken = null;
+let gTokenExpiry = 0;
+let driveConectado = false;
 
 function obterSaudacao() {
   return new Date().getHours() < 12 ? 'Bom dia,' : 'Boa tarde,';
@@ -477,17 +585,24 @@ function salvarHistorico(texto) {
 
   const inst = document.getElementById('email-inst').value.trim();
 
-  historico.unshift({
+  const novoItem = {
     id: Date.now(),
     tipo: currentTab,
     email: inst || '(sem e-mail)',
     texto: texto,
-    data: new Date().toLocaleString('pt-BR')
-  });
+    data: new Date().toLocaleString('pt-BR'),
+    driveStatus: 'pendente'
+  };
+
+  historico.unshift(novoItem);
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
 
   renderHistorico();
+
+  if (driveConectado || tokenValido()) {
+    enviarParaDrive(novoItem.id);
+  }
 }
 
 function carregarHistorico() {
@@ -498,9 +613,20 @@ function carregarHistorico() {
   }
 }
 
+function obterItemHistorico(id) {
+  return carregarHistorico().find(h => h.id === id);
+}
+
 function clearHistory() {
   localStorage.removeItem(STORAGE_KEY);
   renderHistorico();
+}
+
+function iconeDrive(status) {
+  if (status === 'ok') return '☁️';
+  if (status === 'enviando') return '⏳';
+  if (status === 'erro') return '⚠️';
+  return '';
 }
 
 function renderHistorico() {
@@ -518,17 +644,16 @@ function renderHistorico() {
 
   list.innerHTML = historico.map(item => `
     <div class="hist-item" onclick="abrirLog(${item.id})">
-      <div class="hist-item-type">${item.tipo}</div>
+      <div class="hist-item-type ${item.tipo}">${item.tipo}</div>
       <div class="hist-item-email">${item.email}</div>
-      <div class="hist-item-date">${item.data}</div>
+      <div class="hist-item-date">${item.data} ${iconeDrive(item.driveStatus)}</div>
     </div>
   `).join('');
 }
 
 
 function abrirLog(id) {
-  const historico = carregarHistorico();
-  const item = historico.find(h => h.id === id);
+  const item = obterItemHistorico(id);
   if (!item) return;
 
   document.getElementById('logConteudo').textContent =
@@ -538,12 +663,193 @@ Data: ${item.data}
 
 ${item.texto}`;
 
-  document.getElementById('logModal').style.display = 'flex';
+  const status = item.driveStatus || 'pendente';
+  const textos = {
+    ok: '☁️ Enviado ao Google Drive',
+    enviando: '⏳ Enviando para o Google Drive...',
+    erro: '⚠️ Falha ao enviar ao Google Drive.',
+    pendente: 'Ainda não enviado ao Google Drive.'
+  };
+
+  document.getElementById('logDriveArea').innerHTML = `
+    <span>${textos[status] || textos.pendente}</span>
+    ${status !== 'enviando' ? `<button class="btn-icon" onclick="enviarParaDrive(${item.id})">${status === 'ok' ? 'Reenviar' : 'Enviar ao Drive'}</button>` : ''}
+  `;
+
+  const modal = document.getElementById('logModal');
+  modal.dataset.itemId = id;
+  modal.style.display = 'flex';
 }
 
 function fecharLog(event) {
   if (!event || event.target.id === 'logModal') {
     document.getElementById('logModal').style.display = 'none';
+  }
+}
+
+// ---- Tema claro/escuro ----
+
+function aplicarTema(tema) {
+  document.documentElement.setAttribute('data-theme', tema);
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) btn.textContent = tema === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const atual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, atual);
+  aplicarTema(atual);
+}
+
+function initTheme() {
+  const salvo = localStorage.getItem(THEME_KEY);
+  const preferido = salvo || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  aplicarTema(preferido);
+}
+
+// ---- Integração com o Google Drive ----
+
+function clienteConfigurado() {
+  return GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith('SEU_CLIENT_ID');
+}
+
+function garantirTokenClient() {
+  if (gTokenClient || !window.google || !clienteConfigurado()) return gTokenClient;
+
+  gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GOOGLE_DRIVE_SCOPE,
+    callback: () => {}
+  });
+
+  return gTokenClient;
+}
+
+function tokenValido() {
+  return !!gAccessToken && Date.now() < gTokenExpiry - 30000;
+}
+
+function obterAccessToken(interativo) {
+  return new Promise((resolve, reject) => {
+    if (tokenValido()) { resolve(gAccessToken); return; }
+    if (!clienteConfigurado()) { reject(new Error('GOOGLE_CLIENT_ID não configurado')); return; }
+
+    const client = garantirTokenClient();
+    if (!client) { reject(new Error('API do Google ainda não carregou')); return; }
+
+    client.callback = (resp) => {
+      if (resp.error) { reject(resp); return; }
+
+      gAccessToken = resp.access_token;
+      gTokenExpiry = Date.now() + (resp.expires_in * 1000);
+      driveConectado = true;
+      localStorage.setItem(DRIVE_FLAG_KEY, '1');
+      atualizarStatusDrive('conectado');
+      resolve(gAccessToken);
+    };
+
+    client.requestAccessToken({ prompt: interativo ? 'consent' : '' });
+  });
+}
+
+function conectarDrive() {
+  if (!clienteConfigurado()) {
+    alert('Antes de conectar, configure a constante GOOGLE_CLIENT_ID no código-fonte (veja as instruções no README).');
+    return;
+  }
+
+  obterAccessToken(true).catch(err => {
+    console.error('Erro ao conectar ao Google Drive', err);
+    atualizarStatusDrive('erro');
+  });
+}
+
+function atualizarStatusDrive(status) {
+  const dot = document.getElementById('drive-status-dot');
+  const texto = document.getElementById('drive-status-text');
+  const btn = document.getElementById('btn-drive-connect');
+  if (!dot || !texto) return;
+
+  dot.className = 'dot ' + status;
+
+  if (status === 'conectado') {
+    texto.textContent = 'Drive conectado';
+    if (btn) btn.textContent = 'Reconectar';
+  } else if (status === 'erro') {
+    texto.textContent = 'Erro ao conectar';
+    if (btn) btn.textContent = 'Tentar novamente';
+  } else {
+    texto.textContent = 'Drive desconectado';
+    if (btn) btn.textContent = 'Conectar Google Drive';
+  }
+}
+
+function marcarUploadStatus(id, status, driveFileId) {
+  const historico = carregarHistorico();
+  const idx = historico.findIndex(h => h.id === id);
+  if (idx === -1) return;
+
+  historico[idx].driveStatus = status;
+  if (driveFileId) historico[idx].driveFileId = driveFileId;
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
+  renderHistorico();
+
+  const modal = document.getElementById('logModal');
+  if (modal.style.display === 'flex' && Number(modal.dataset.itemId) === id) {
+    abrirLog(id);
+  }
+}
+
+async function enviarParaDrive(id) {
+  const item = obterItemHistorico(id);
+  if (!item) return;
+
+  marcarUploadStatus(id, 'enviando');
+
+  try {
+    const token = await obterAccessToken(false);
+
+    const nomeArquivo = `chamado_${item.tipo}_${item.id}.txt`;
+    const conteudo = `Tipo: ${item.tipo}\nE-mail: ${item.email}\nData: ${item.data}\n\n${item.texto}`;
+    const metadata = { name: nomeArquivo, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: 'text/plain' };
+    const boundary = 'chamados-' + item.id;
+
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${conteudo}\r\n` +
+      `--${boundary}--`;
+
+    const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`
+      },
+      body
+    });
+
+    if (!resp.ok) throw new Error('Falha no upload: HTTP ' + resp.status);
+
+    const data = await resp.json();
+    marcarUploadStatus(id, 'ok', data.id);
+  } catch (err) {
+    console.error('Erro ao enviar chamado para o Drive', err);
+    marcarUploadStatus(id, 'erro');
+  }
+}
+
+function tentarReconexaoSilenciosa() {
+  if (localStorage.getItem(DRIVE_FLAG_KEY) === '1' && clienteConfigurado()) {
+    obterAccessToken(false).catch(() => {});
+  }
+}
+
+function aguardarGoogleEChamar(fn, tentativas = 20) {
+  if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+    fn();
+  } else if (tentativas > 0) {
+    setTimeout(() => aguardarGoogleEChamar(fn, tentativas - 1), 250);
   }
 }
 
@@ -575,8 +881,11 @@ document.getElementById('input-chamado').addEventListener('input', function() {
   document.getElementById(id).addEventListener('input', atualizarPreview);
 });
 
+initTheme();
 regenerarSenha();
 renderHistorico();
+atualizarStatusDrive('desconectado');
+aguardarGoogleEChamar(tentarReconexaoSilenciosa);
 </script>
 </body>
 </html>
