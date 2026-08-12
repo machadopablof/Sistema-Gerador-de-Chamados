@@ -174,7 +174,7 @@
   .dot.conectado { background: #34d399; }
   .dot.erro { background: #f87171; }
 
-  #btn-drive-connect {
+  #btn-drive-connect, #btn-drive-sync {
     width: 100%;
     padding: 7px 0;
     background: transparent;
@@ -186,7 +186,7 @@
     margin-bottom: 8px;
   }
 
-  #btn-drive-connect:hover { background: var(--sidebar-hover); }
+  #btn-drive-connect:hover, #btn-drive-sync:hover { background: var(--sidebar-hover); }
 
   #btn-clear-history {
     width: 100%;
@@ -467,6 +467,7 @@
       <span id="drive-status-text">Drive desconectado</span>
     </div>
     <button id="btn-drive-connect" onclick="conectarDrive()">Conectar Google Drive</button>
+    <button id="btn-drive-sync" onclick="sincronizarDoDrive()" style="display:none;">🔄 Sincronizar histórico</button>
     <button id="btn-clear-history" onclick="clearHistory()">Limpar histórico</button>
   </div>
 </aside>
@@ -832,6 +833,7 @@ function obterAccessToken(interativo) {
       driveConectado = true;
       localStorage.setItem(DRIVE_FLAG_KEY, '1');
       atualizarStatusDrive('conectado');
+      sincronizarDoDrive();
       resolve(gAccessToken);
     };
 
@@ -855,6 +857,7 @@ function atualizarStatusDrive(status) {
   const dot = document.getElementById('drive-status-dot');
   const texto = document.getElementById('drive-status-text');
   const btn = document.getElementById('btn-drive-connect');
+  const syncBtn = document.getElementById('btn-drive-sync');
   if (!dot || !texto) return;
 
   dot.className = 'dot ' + status;
@@ -862,12 +865,92 @@ function atualizarStatusDrive(status) {
   if (status === 'conectado') {
     texto.textContent = 'Drive conectado';
     if (btn) btn.textContent = 'Reconectar';
+    if (syncBtn) syncBtn.style.display = 'block';
   } else if (status === 'erro') {
     texto.textContent = 'Erro ao conectar';
     if (btn) btn.textContent = 'Tentar novamente';
+    if (syncBtn) syncBtn.style.display = 'none';
   } else {
     texto.textContent = 'Drive desconectado';
     if (btn) btn.textContent = 'Conectar Google Drive';
+    if (syncBtn) syncBtn.style.display = 'none';
+  }
+}
+
+// ---- Sincronização: puxa do Drive os chamados salvos em outros dispositivos ----
+
+async function sincronizarDoDrive() {
+  const syncBtn = document.getElementById('btn-drive-sync');
+
+  try {
+    const token = await obterAccessToken(false);
+
+    if (syncBtn) syncBtn.textContent = '⏳ Sincronizando...';
+
+    let arquivos = [];
+    let pageToken = '';
+
+    do {
+      const params = new URLSearchParams({
+        q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`,
+        fields: 'nextPageToken, files(id, name)',
+        pageSize: '1000',
+        orderBy: 'createdTime desc'
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+
+      const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) throw new Error('Falha ao listar arquivos do Drive: HTTP ' + resp.status);
+
+      const data = await resp.json();
+      arquivos = arquivos.concat(data.files || []);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    const historico = carregarHistorico();
+
+    for (const arquivo of arquivos) {
+      const nomeMatch = arquivo.name.match(/^chamado_(.+)_(\d+)\.txt$/);
+      if (!nomeMatch) continue;
+
+      const id = Number(nomeMatch[2]);
+      const existente = historico.find(h => h.id === id);
+
+      if (existente) {
+        existente.driveStatus = 'ok';
+        existente.driveFileId = arquivo.id;
+        continue;
+      }
+
+      const contResp = await fetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!contResp.ok) continue;
+
+      const conteudo = await contResp.text();
+      const conteudoMatch = conteudo.match(/^Tipo: (.*)\nE-mail: (.*)\nData: (.*)\n\n([\s\S]*)$/);
+      if (!conteudoMatch) continue;
+
+      historico.push({
+        id,
+        tipo: conteudoMatch[1].trim(),
+        email: conteudoMatch[2].trim(),
+        data: conteudoMatch[3].trim(),
+        texto: conteudoMatch[4],
+        driveStatus: 'ok',
+        driveFileId: arquivo.id
+      });
+    }
+
+    historico.sort((a, b) => b.id - a.id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
+    renderHistorico();
+  } catch (err) {
+    console.error('Erro ao sincronizar histórico do Drive', err);
+  } finally {
+    if (syncBtn) syncBtn.textContent = '🔄 Sincronizar histórico';
   }
 }
 
