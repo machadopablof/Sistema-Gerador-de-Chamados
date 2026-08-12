@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Chamados — Suporte Fiocruz</title>
+<style>
+  :root {
+    --bg: #f5f4f1;
+    --surface: #ffffff;
+    --sidebar: #1a1a2e;
+    --sidebar-item: #252542;
+    --sidebar-hover: #2e2e52;
+    --accent: #4f46e5;
+    --accent-light: #ede9fe;
+    --accent-text: #3730a3;
+    --border: #e2e0d8;
+    --text: #1c1b1a;
+    --muted: #6b6a66;
+    --success: #065f46;
+    --success-bg: #d1fae5;
+    --mono: 'Courier New', Courier, monospace;
+    --sans: 'Segoe UI', system-ui, sans-serif;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+  }
+
+  #sidebar {
+    width: 300px;
+    min-width: 300px;
+    background: var(--sidebar);
+    color: #e0dff8;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow: hidden;
+  }
+
+  #sidebar-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  #sidebar-header h2 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #9896c8;
+    margin-bottom: 4px;
+  }
+
+  #sidebar-header p {
+    font-size: 11px;
+    color: #6a68a0;
+  }
+
+  #history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .history-empty {
+    padding: 24px 18px;
+    font-size: 12px;
+    color: #6a68a0;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .hist-item {
+    padding: 10px 18px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .hist-item:hover { background: var(--sidebar-hover); border-left-color: #6366f1; }
+  .hist-item.active { background: var(--sidebar-item); border-left-color: #818cf8; }
+
+  .hist-item-type {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .hist-item-type.reset { color: #a78bfa; }
+  .hist-item-type.criacao { color: #34d399; }
+
+  .hist-item-email {
+    font-size: 12px;
+    color: #c4c3e8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+
+  .hist-item-date {
+    font-size: 10px;
+    color: #6a68a0;
+  }
+
+  #sidebar-footer {
+    padding: 12px 18px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+
+  #btn-clear-history {
+    width: 100%;
+    padding: 7px 0;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    color: #6a68a0;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  #main {
+    flex: 1;
+    padding: 36px 40px;
+    overflow-y: auto;
+    max-width: 760px;
+  }
+
+  #page-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  #page-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--border);
+    padding: 3px;
+    border-radius: 9px;
+    margin-bottom: 28px;
+    width: fit-content;
+  }
+
+  .tab-btn {
+    padding: 7px 20px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .tab-btn.active {
+    background: var(--surface);
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    background: var(--bg);
+    outline: none;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .field-group label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .senha-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .senha-display {
+    flex: 1;
+    background: #0f172a;
+    color: #8B0000;
+    font-weight: 700;
+    font-family: monospace;
+    font-size: 20px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+  }
+
+  .btn-icon {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .preview-box {
+    background: #f8f7f3;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    min-height: 80px;
+  }
+
+  .btn-copy {
+    margin-top: 12px;
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .modal {
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+    z-index:1000;
+    align-items:center;
+    justify-content:center;
+  }
+  .modal-content{
+    background:#fff;
+    width:min(800px,90vw);
+    max-height:80vh;
+    overflow:auto;
+    border-radius:10px;
+    padding:20px;
+  }
+  .modal-close{
+    float:right;
+    cursor:pointer;
+    font-size:22px;
+    font-weight:bold;
+  }
+
+</style>
+</head>
+<body>
+
+<aside id="sidebar">
+  <div id="sidebar-header">
+    <h2>Histórico</h2>
+    <p id="hist-count">Nenhum chamado gerado</p>
+  </div>
+
+  <div id="history-list">
+    <div class="history-empty">
+      Nenhum chamado no histórico.
+    </div>
+  </div>
+
+  <div id="sidebar-footer">
+    <button id="btn-clear-history" onclick="clearHistory()">Limpar histórico</button>
+  </div>
+</aside>
+
+<main id="main">
+  <div id="page-title">Gerador de Chamados</div>
+  <div id="page-subtitle">Suporte Fiocruz — Reset de Senha & Criação de Usuário</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setTab('reset')">Reset de Senha</button>
+    <button class="tab-btn" onclick="setTab('criacao')">Criação de Usuário</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Chamado recebido</div>
+    <textarea id="input-chamado" rows="5" placeholder="Cole aqui o chamado"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Dados extraídos</div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>E-mail institucional</label>
+        <input type="text" id="email-inst">
+      </div>
+
+      <div class="field-group">
+        <label>E-mail pessoal</label>
+        <input type="text" id="email-pessoal">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>Nome completo</label>
+        <input type="text" id="nome-completo" placeholder="Nome identificado automaticamente">
+      </div>
+    </div>
+
+    <div class="senha-row">
+      <input class="senha-display" type="text" id="senha" readonly>
+      <button class="btn-icon" onclick="regenerarSenha()">↺ Nova senha</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Prévia do chamado</div>
+    <div class="preview-box" id="preview"></div>
+    <button class="btn-copy" id="btn-copy" onclick="copiarChamado()">Copiar chamado</button>
+  </div>
+</main>
+
+
+<div id="logModal" class="modal" onclick="fecharLog(event)">
+  <div class="modal-content">
+    <span class="modal-close" onclick="fecharLog()">&times;</span>
+    <h3>Detalhes do Log</h3>
+    <br>
+    <div id="logConteudo" class="preview-box"></div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'chamados_historico';
+let currentTab = 'reset';
+let currentSenha = '';
+
+function obterSaudacao() {
+  return new Date().getHours() < 12 ? 'Bom dia,' : 'Boa tarde,';
+}
+
+function gerarSenhaAleatoria(tamanho = 8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*';
+  let senha = '';
+  for (let i = 0; i < tamanho; i++) {
+    senha += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return senha;
+}
+
+function extrairEmails(texto) {
+  return [...new Set((texto.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) || []))];
+}
+
+function extrairNome(texto) {
+  const linhas = texto.split('\n');
+
+  for (const linha of linhas) {
+    const limpa = linha.trim();
+
+    if (
+      limpa.length > 5 &&
+      limpa.length < 80 &&
+      !limpa.includes('@') &&
+      /^[A-Za-zÀ-ÿ\s]+$/.test(limpa)
+    ) {
+      return limpa;
+    }
+  }
+
+  return '';
+}
+
+function isPessoal(email) {
+  return !email.toLowerCase().includes('fiocruz.br');
+}
+
+function setTab(tab) {
+  currentTab = tab;
+
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active',
+      (tab === 'reset' && i === 0) ||
+      (tab === 'criacao' && i === 1)
+    );
+  });
+
+  atualizarPreview();
+}
+
+function regenerarSenha() {
+  currentSenha = gerarSenhaAleatoria();
+  document.getElementById('senha').value = currentSenha;
+  atualizarPreview();
+}
+
+function atualizarPreview() {
+  const inst = document.getElementById('email-inst').value.trim();
+  const pessoal = document.getElementById('email-pessoal').value.trim();
+  const nome = document.getElementById('nome-completo').value.trim();
+  const saudacao = obterSaudacao();
+
+  let texto = '';
+
+  if (currentTab === 'reset') {
+    texto = `${saudacao}\n\nSolicito suporte para auxiliar o usuário ${nome || '[NOMECOMPLETO]'} no reset de senha do e-mail institucional.\n\nDados do e-mail:\nE-mail: ${inst || '–'}\nSenha atual: ${currentSenha || '–'}\nE-mail pessoal: ${pessoal || '–'}`;
+  } else {
+    texto = `${saudacao}\n\nSolicito suporte para auxiliar o novo usuário ${nome || '[NOMECOMPLETO]'} em seu acesso.\n\nDados de login:\nE-mail: ${inst || '–'}\nSenha: ${currentSenha || '–'}\nE-mail pessoal: ${pessoal || '–'}`;
+  }
+
+  document.getElementById('preview').textContent = texto;
+}
+
+function copiarChamado() {
+  const texto = document.getElementById('preview').textContent;
+
+  navigator.clipboard.writeText(texto).then(() => {
+    salvarHistorico(texto);
+
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = '✓ Copiado!';
+
+    setTimeout(() => {
+      btn.textContent = 'Copiar chamado';
+    }, 2000);
+  });
+}
+
+function salvarHistorico(texto) {
+  const historico = carregarHistorico();
+
+  const ultimo = historico[0];
+
+  if (ultimo && ultimo.texto === texto) {
+    return;
+  }
+
+  const inst = document.getElementById('email-inst').value.trim();
+
+  historico.unshift({
+    id: Date.now(),
+    tipo: currentTab,
+    email: inst || '(sem e-mail)',
+    texto: texto,
+    data: new Date().toLocaleString('pt-BR')
+  });
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
+
+  renderHistorico();
+}
+
+function carregarHistorico() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function clearHistory() {
+  localStorage.removeItem(STORAGE_KEY);
+  renderHistorico();
+}
+
+function renderHistorico() {
+  const historico = carregarHistorico();
+  const list = document.getElementById('history-list');
+  const countEl = document.getElementById('hist-count');
+
+  if (historico.length === 0) {
+    list.innerHTML = '<div class="history-empty">Nenhum chamado no histórico.</div>';
+    countEl.textContent = 'Nenhum chamado gerado';
+    return;
+  }
+
+  countEl.textContent = `${historico.length} chamado(s)`;
+
+  list.innerHTML = historico.map(item => `
+    <div class="hist-item" onclick="abrirLog(${item.id})">
+      <div class="hist-item-type">${item.tipo}</div>
+      <div class="hist-item-email">${item.email}</div>
+      <div class="hist-item-date">${item.data}</div>
+    </div>
+  `).join('');
+}
+
+
+function abrirLog(id) {
+  const historico = carregarHistorico();
+  const item = historico.find(h => h.id === id);
+  if (!item) return;
+
+  document.getElementById('logConteudo').textContent =
+`Tipo: ${item.tipo}
+E-mail: ${item.email}
+Data: ${item.data}
+
+${item.texto}`;
+
+  document.getElementById('logModal').style.display = 'flex';
+}
+
+function fecharLog(event) {
+  if (!event || event.target.id === 'logModal') {
+    document.getElementById('logModal').style.display = 'none';
+  }
+}
+
+
+document.getElementById('input-chamado').addEventListener('input', function() {
+  const texto = this.value;
+
+  const emails = extrairEmails(texto);
+
+  let inst = '';
+  let pessoal = '';
+
+  emails.forEach(e => {
+    if (!isPessoal(e) && !inst) inst = e;
+    else if (isPessoal(e) && !pessoal) pessoal = e;
+  });
+
+  document.getElementById('email-inst').value = inst;
+  document.getElementById('email-pessoal').value = pessoal;
+
+  const nome = extrairNome(texto);
+
+  document.getElementById('nome-completo').value = nome;
+
+  regenerarSenha();
+});
+
+['email-inst', 'email-pessoal', 'senha', 'nome-completo'].forEach(id => {
+  document.getElementById(id).addEventListener('input', atualizarPreview);
+});
+
+regenerarSenha();
+renderHistorico();
+</script>
+</body>
+</html>
