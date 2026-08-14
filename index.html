@@ -549,6 +549,9 @@ const GOOGLE_CLIENT_ID = '325322736519-251cvs8h7sjiu2nufppt9jugn78jetgb.apps.goo
 const GOOGLE_DRIVE_FOLDER_ID = '1WrUxMv-tASmF0etoj8HLoIO4nKvTr4OD';
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FLAG_KEY = 'chamados_drive_conectado';
+const DRIVE_LOG_FILENAME = 'historico_chamados.txt';
+const DRIVE_LOG_FILE_ID_KEY = 'chamados_drive_log_file_id';
+const DRIVE_ENTRY_SEPARATOR = '\n\n==========\n\n';
 
 let currentTab = 'reset';
 let currentSenha = '';
@@ -877,6 +880,74 @@ function atualizarStatusDrive(status) {
   }
 }
 
+// ---- Arquivo único de histórico no Drive ----
+
+let gLogFileId = null;
+
+function formatarBlocoChamado(item) {
+  return `ID: ${item.id}\nTipo: ${item.tipo}\nE-mail: ${item.email}\nData: ${item.data}\n\n${item.texto}`;
+}
+
+async function obterOuCriarArquivoLog(token) {
+  if (gLogFileId) return gLogFileId;
+
+  const idSalvo = localStorage.getItem(DRIVE_LOG_FILE_ID_KEY);
+  if (idSalvo) {
+    const check = await fetch(`https://www.googleapis.com/drive/v3/files/${idSalvo}?fields=id,trashed`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (check.ok) {
+      const info = await check.json();
+      if (!info.trashed) {
+        gLogFileId = idSalvo;
+        return gLogFileId;
+      }
+    }
+  }
+
+  const params = new URLSearchParams({
+    q: `name = '${DRIVE_LOG_FILENAME}' and '${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`,
+    fields: 'files(id, name)'
+  });
+
+  const buscaResp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (buscaResp.ok) {
+    const buscaData = await buscaResp.json();
+    if (buscaData.files && buscaData.files.length > 0) {
+      gLogFileId = buscaData.files[0].id;
+      localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+      return gLogFileId;
+    }
+  }
+
+  const metadata = { name: DRIVE_LOG_FILENAME, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: 'text/plain' };
+  const boundary = 'chamados-logfile';
+
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n\r\n` +
+    `--${boundary}--`;
+
+  const criaResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+
+  if (!criaResp.ok) throw new Error('Falha ao criar arquivo de log no Drive: HTTP ' + criaResp.status);
+
+  const criaData = await criaResp.json();
+  gLogFileId = criaData.id;
+  localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+  return gLogFileId;
+}
+
 // ---- Sincronização: puxa do Drive os chamados salvos em outros dispositivos ----
 
 async function sincronizarDoDrive() {
@@ -887,60 +958,38 @@ async function sincronizarDoDrive() {
 
     if (syncBtn) syncBtn.textContent = '⏳ Sincronizando...';
 
-    let arquivos = [];
-    let pageToken = '';
+    const fileId = await obterOuCriarArquivoLog(token);
 
-    do {
-      const params = new URLSearchParams({
-        q: `'${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`,
-        fields: 'nextPageToken, files(id, name)',
-        pageSize: '1000',
-        orderBy: 'createdTime desc'
-      });
-      if (pageToken) params.set('pageToken', pageToken);
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!resp.ok) throw new Error('Falha ao ler arquivo do Drive: HTTP ' + resp.status);
 
-      const resp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!resp.ok) throw new Error('Falha ao listar arquivos do Drive: HTTP ' + resp.status);
+    const conteudo = await resp.text();
+    if (!conteudo.trim()) return;
 
-      const data = await resp.json();
-      arquivos = arquivos.concat(data.files || []);
-      pageToken = data.nextPageToken || '';
-    } while (pageToken);
-
+    const blocos = conteudo.split(DRIVE_ENTRY_SEPARATOR);
     const historico = carregarHistorico();
 
-    for (const arquivo of arquivos) {
-      const nomeMatch = arquivo.name.match(/^chamado_(.+)_(\d+)\.txt$/);
-      if (!nomeMatch) continue;
+    for (const bloco of blocos) {
+      const m = bloco.match(/^ID: (\d+)\nTipo: (.*)\nE-mail: (.*)\nData: (.*)\n\n([\s\S]*)$/);
+      if (!m) continue;
 
-      const id = Number(nomeMatch[2]);
+      const id = Number(m[1]);
       const existente = historico.find(h => h.id === id);
 
       if (existente) {
         existente.driveStatus = 'ok';
-        existente.driveFileId = arquivo.id;
         continue;
       }
 
-      const contResp = await fetch(`https://www.googleapis.com/drive/v3/files/${arquivo.id}?alt=media`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!contResp.ok) continue;
-
-      const conteudo = await contResp.text();
-      const conteudoMatch = conteudo.match(/^Tipo: (.*)\nE-mail: (.*)\nData: (.*)\n\n([\s\S]*)$/);
-      if (!conteudoMatch) continue;
-
       historico.push({
         id,
-        tipo: conteudoMatch[1].trim(),
-        email: conteudoMatch[2].trim(),
-        data: conteudoMatch[3].trim(),
-        texto: conteudoMatch[4],
-        driveStatus: 'ok',
-        driveFileId: arquivo.id
+        tipo: m[2].trim(),
+        email: m[3].trim(),
+        data: m[4].trim(),
+        texto: m[5],
+        driveStatus: 'ok'
       });
     }
 
@@ -954,13 +1003,12 @@ async function sincronizarDoDrive() {
   }
 }
 
-function marcarUploadStatus(id, status, driveFileId) {
+function marcarUploadStatus(id, status) {
   const historico = carregarHistorico();
   const idx = historico.findIndex(h => h.id === id);
   if (idx === -1) return;
 
   historico[idx].driveStatus = status;
-  if (driveFileId) historico[idx].driveFileId = driveFileId;
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
   renderHistorico();
@@ -971,7 +1019,16 @@ function marcarUploadStatus(id, status, driveFileId) {
   }
 }
 
-async function enviarParaDrive(id) {
+// Fila serializa as gravações para evitar que dois envios simultâneos
+// leiam o mesmo conteúdo antigo do arquivo e um sobrescreva o outro.
+let filaGravacaoDrive = Promise.resolve();
+
+function enviarParaDrive(id) {
+  filaGravacaoDrive = filaGravacaoDrive.then(() => enviarParaDriveInterno(id)).catch(() => {});
+  return filaGravacaoDrive;
+}
+
+async function enviarParaDriveInterno(id) {
   const item = obterItemHistorico(id);
   if (!item) return;
 
@@ -979,30 +1036,30 @@ async function enviarParaDrive(id) {
 
   try {
     const token = await obterAccessToken(false);
+    const fileId = await obterOuCriarArquivoLog(token);
 
-    const nomeArquivo = `chamado_${item.tipo}_${item.id}.txt`;
-    const conteudo = `Tipo: ${item.tipo}\nE-mail: ${item.email}\nData: ${item.data}\n\n${item.texto}`;
-    const metadata = { name: nomeArquivo, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: 'text/plain' };
-    const boundary = 'chamados-' + item.id;
+    const leituraResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const conteudoAtual = leituraResp.ok ? await leituraResp.text() : '';
 
-    const body =
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${conteudo}\r\n` +
-      `--${boundary}--`;
+    const bloco = formatarBlocoChamado(item);
+    const novoConteudo = conteudoAtual && conteudoAtual.trim()
+      ? conteudoAtual + DRIVE_ENTRY_SEPARATOR + bloco
+      : bloco;
 
-    const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-      method: 'POST',
+    const updateResp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,
-        'Content-Type': `multipart/related; boundary=${boundary}`
+        'Content-Type': 'text/plain; charset=UTF-8'
       },
-      body
+      body: novoConteudo
     });
 
-    if (!resp.ok) throw new Error('Falha no upload: HTTP ' + resp.status);
+    if (!updateResp.ok) throw new Error('Falha ao atualizar arquivo do Drive: HTTP ' + updateResp.status);
 
-    const data = await resp.json();
-    marcarUploadStatus(id, 'ok', data.id);
+    marcarUploadStatus(id, 'ok');
   } catch (err) {
     console.error('Erro ao enviar chamado para o Drive', err);
     marcarUploadStatus(id, 'erro');
