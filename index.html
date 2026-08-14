@@ -655,18 +655,26 @@ function copiarChamado() {
 function salvarHistorico(texto) {
   const historico = carregarHistorico();
 
+  const inst = document.getElementById('email-inst').value.trim();
+  const pessoal = document.getElementById('email-pessoal').value.trim();
+  const nome = document.getElementById('nome-completo').value.trim();
+
+  // Assinatura dos dados que realmente identificam o chamado, sem a senha
+  // (que muda a cada geração). Copiar de novo o mesmo chamado (só com uma
+  // senha nova) não deve criar uma entrada nova no histórico/log.
+  const assinatura = `${currentTab}|${inst}|${pessoal}|${nome}`;
+
   const ultimo = historico[0];
 
-  if (ultimo && ultimo.texto === texto) {
+  if (ultimo && ultimo.assinatura === assinatura) {
     return;
   }
-
-  const inst = document.getElementById('email-inst').value.trim();
 
   const novoItem = {
     id: Date.now(),
     tipo: currentTab,
     email: inst || '(sem e-mail)',
+    assinatura: assinatura,
     texto: texto,
     data: new Date().toLocaleString('pt-BR'),
     driveStatus: 'pendente'
