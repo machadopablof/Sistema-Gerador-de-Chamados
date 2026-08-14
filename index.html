@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gerador de Chamados — Suporte Fiocruz</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
     --bg: #f5f4f1;
@@ -22,6 +23,19 @@
     --mono: 'Courier New', Courier, monospace;
     --sans: 'Segoe UI', system-ui, sans-serif;
     --radius: 10px;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #121119;
+    --surface: #1b1a27;
+    --accent: #818cf8;
+    --accent-light: #2f2a5c;
+    --accent-text: #c7d2fe;
+    --border: #322f49;
+    --text: #eeecf7;
+    --muted: #a7a5d1;
+    --success: #6ee7b7;
+    --success-bg: #08382c;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,19 +66,39 @@
     border-bottom: 1px solid rgba(255,255,255,0.07);
   }
 
+  #sidebar-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
   #sidebar-header h2 {
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: #9896c8;
-    margin-bottom: 4px;
   }
 
   #sidebar-header p {
     font-size: 11px;
-    color: #6a68a0;
+    color: #b4b2dc;
   }
+
+  #btn-theme-toggle {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #e0dff8;
+    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  #btn-theme-toggle:hover { background: var(--sidebar-hover); }
 
   #history-list {
     flex: 1;
@@ -75,7 +109,7 @@
   .history-empty {
     padding: 24px 18px;
     font-size: 12px;
-    color: #6a68a0;
+    color: #b4b2dc;
     text-align: center;
     line-height: 1.6;
   }
@@ -112,7 +146,7 @@
 
   .hist-item-date {
     font-size: 10px;
-    color: #6a68a0;
+    color: #b4b2dc;
   }
 
   #sidebar-footer {
@@ -120,13 +154,47 @@
     border-top: 1px solid rgba(255,255,255,0.07);
   }
 
+  .drive-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #c4c3e8;
+    margin-bottom: 8px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6a68a0;
+    flex-shrink: 0;
+  }
+
+  .dot.conectado { background: #34d399; }
+  .dot.erro { background: #f87171; }
+
+  #btn-drive-connect, #btn-drive-sync {
+    width: 100%;
+    padding: 7px 0;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    color: #c4c3e8;
+    font-size: 11px;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
+
+  #btn-drive-connect:hover, #btn-drive-sync:hover { background: var(--sidebar-hover); }
+
   #btn-clear-history {
     width: 100%;
     padding: 7px 0;
     background: transparent;
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 6px;
-    color: #6a68a0;
+    color: #b4b2dc;
     font-size: 11px;
     cursor: pointer;
   }
@@ -136,6 +204,27 @@
     padding: 36px 40px;
     overflow-y: auto;
     max-width: 760px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  #btn-menu-toggle {
+    display: none;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 16px;
+    cursor: pointer;
   }
 
   #page-title {
@@ -148,6 +237,14 @@
     font-size: 13px;
     color: var(--muted);
     margin-bottom: 28px;
+  }
+
+  #sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 900;
   }
 
   .tabs {
@@ -166,6 +263,7 @@
     border-radius: 7px;
     background: transparent;
     font-size: 13px;
+    color: var(--text);
     cursor: pointer;
   }
 
@@ -196,6 +294,7 @@
     padding: 10px 12px;
     font-size: 13px;
     background: var(--bg);
+    color: var(--text);
     outline: none;
   }
 
@@ -226,10 +325,10 @@
     margin-top: 12px;
   }
 
-  .senha-display {
+  input.senha-display {
     flex: 1;
     background: #0f172a;
-    color: #8B0000;
+    color: #f87171;
     font-weight: 700;
     font-family: monospace;
     font-size: 20px;
@@ -242,11 +341,14 @@
     padding: 8px 12px;
     border-radius: 8px;
     border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
     cursor: pointer;
   }
 
   .preview-box {
-    background: #f8f7f3;
+    background: var(--bg);
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 14px 16px;
@@ -276,7 +378,8 @@
     justify-content:center;
   }
   .modal-content{
-    background:#fff;
+    background: var(--surface);
+    color: var(--text);
     width:min(800px,90vw);
     max-height:80vh;
     overflow:auto;
@@ -288,6 +391,55 @@
     cursor:pointer;
     font-size:22px;
     font-weight:bold;
+    color: var(--text);
+  }
+
+  .drive-log-area {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 860px) {
+    #sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 85vw;
+      max-width: 320px;
+      z-index: 950;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+      box-shadow: 2px 0 24px rgba(0,0,0,0.35);
+    }
+
+    #sidebar.open { transform: translateX(0); }
+
+    #sidebar-backdrop.open { display: block; }
+
+    #btn-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+
+    #main { padding: 20px 16px 40px; max-width: 100%; }
+
+    .card { padding: 18px 16px; }
+
+    .field-row { grid-template-columns: 1fr; }
+
+    .senha-row { flex-wrap: wrap; }
+
+    input.senha-display { min-width: 0; }
+
+    .modal-content { padding: 16px; }
+  }
+
+  @media (max-width: 420px) {
+    .tabs { width: 100%; }
+    .tab-btn { flex: 1; padding: 7px 8px; font-size: 12px; }
+    #page-title { font-size: 19px; }
   }
 
 </style>
@@ -296,7 +448,10 @@
 
 <aside id="sidebar">
   <div id="sidebar-header">
-    <h2>Histórico</h2>
+    <div id="sidebar-header-top">
+      <h2>Histórico</h2>
+      <button id="btn-theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro">🌙</button>
+    </div>
     <p id="hist-count">Nenhum chamado gerado</p>
   </div>
 
@@ -307,13 +462,26 @@
   </div>
 
   <div id="sidebar-footer">
+    <div class="drive-status">
+      <span id="drive-status-dot" class="dot"></span>
+      <span id="drive-status-text">Drive desconectado</span>
+    </div>
+    <button id="btn-drive-connect" onclick="conectarDrive()">Conectar Google Drive</button>
+    <button id="btn-drive-sync" onclick="sincronizarDoDrive()" style="display:none;">🔄 Sincronizar histórico</button>
     <button id="btn-clear-history" onclick="clearHistory()">Limpar histórico</button>
   </div>
 </aside>
 
+<div id="sidebar-backdrop" onclick="toggleSidebar(false)"></div>
+
 <main id="main">
-  <div id="page-title">Gerador de Chamados</div>
-  <div id="page-subtitle">Suporte Fiocruz — Reset de Senha & Criação de Usuário</div>
+  <div class="page-header">
+    <button id="btn-menu-toggle" onclick="toggleSidebar()" title="Abrir histórico" aria-label="Abrir histórico">☰</button>
+    <div>
+      <div id="page-title">Gerador de Chamados</div>
+      <div id="page-subtitle">Suporte Fiocruz — Reset de Senha & Criação de Usuário</div>
+    </div>
+  </div>
 
   <div class="tabs">
     <button class="tab-btn active" onclick="setTab('reset')">Reset de Senha</button>
@@ -367,13 +535,33 @@
     <h3>Detalhes do Log</h3>
     <br>
     <div id="logConteudo" class="preview-box"></div>
+    <div id="logDriveArea" class="drive-log-area"></div>
   </div>
 </div>
 
 <script>
 const STORAGE_KEY = 'chamados_historico';
+const THEME_KEY = 'chamados_tema';
+
+// Configuração do Google Drive — veja o README para instruções de como
+// obter um Client ID e habilitar a API do Drive no Google Cloud Console.
+const GOOGLE_CLIENT_ID = '325322736519-251cvs8h7sjiu2nufppt9jugn78jetgb.apps.googleusercontent.com';
+const GOOGLE_DRIVE_FOLDER_ID = '1WrUxMv-tASmF0etoj8HLoIO4nKvTr4OD';
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FLAG_KEY = 'chamados_drive_conectado';
+const DRIVE_LOG_FILENAME = 'historico_chamados.txt';
+const DRIVE_LOG_FILE_ID_KEY = 'chamados_drive_log_file_id';
+const DRIVE_ENTRY_SEPARATOR = '\n\n==========\n\n';
+const DRIVE_SESSION_KEY = 'chamados_drive_sessao';
+const DRIVE_TOKEN_SAFETY_MARGIN_MS = 60000;
+
 let currentTab = 'reset';
 let currentSenha = '';
+
+let gTokenClient = null;
+let gAccessToken = null;
+let gTokenExpiry = 0;
+let driveConectado = false;
 
 function obterSaudacao() {
   return new Date().getHours() < 12 ? 'Bom dia,' : 'Boa tarde,';
@@ -469,25 +657,40 @@ function copiarChamado() {
 function salvarHistorico(texto) {
   const historico = carregarHistorico();
 
+  const inst = document.getElementById('email-inst').value.trim();
+  const pessoal = document.getElementById('email-pessoal').value.trim();
+  const nome = document.getElementById('nome-completo').value.trim();
+
+  // Assinatura dos dados que realmente identificam o chamado, sem a senha
+  // (que muda a cada geração). Copiar de novo o mesmo chamado (só com uma
+  // senha nova) não deve criar uma entrada nova no histórico/log.
+  const assinatura = `${currentTab}|${inst}|${pessoal}|${nome}`;
+
   const ultimo = historico[0];
 
-  if (ultimo && ultimo.texto === texto) {
+  if (ultimo && ultimo.assinatura === assinatura) {
     return;
   }
 
-  const inst = document.getElementById('email-inst').value.trim();
-
-  historico.unshift({
+  const novoItem = {
     id: Date.now(),
     tipo: currentTab,
     email: inst || '(sem e-mail)',
+    assinatura: assinatura,
     texto: texto,
-    data: new Date().toLocaleString('pt-BR')
-  });
+    data: new Date().toLocaleString('pt-BR'),
+    driveStatus: 'pendente'
+  };
+
+  historico.unshift(novoItem);
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
 
   renderHistorico();
+
+  if (driveConectado || tokenValido()) {
+    enviarParaDrive(novoItem.id);
+  }
 }
 
 function carregarHistorico() {
@@ -498,9 +701,20 @@ function carregarHistorico() {
   }
 }
 
+function obterItemHistorico(id) {
+  return carregarHistorico().find(h => h.id === id);
+}
+
 function clearHistory() {
   localStorage.removeItem(STORAGE_KEY);
   renderHistorico();
+}
+
+function iconeDrive(status) {
+  if (status === 'ok') return '☁️';
+  if (status === 'enviando') return '⏳';
+  if (status === 'erro') return '⚠️';
+  return '';
 }
 
 function renderHistorico() {
@@ -518,17 +732,16 @@ function renderHistorico() {
 
   list.innerHTML = historico.map(item => `
     <div class="hist-item" onclick="abrirLog(${item.id})">
-      <div class="hist-item-type">${item.tipo}</div>
+      <div class="hist-item-type ${item.tipo}">${item.tipo}</div>
       <div class="hist-item-email">${item.email}</div>
-      <div class="hist-item-date">${item.data}</div>
+      <div class="hist-item-date">${item.data} ${iconeDrive(item.driveStatus)}</div>
     </div>
   `).join('');
 }
 
 
 function abrirLog(id) {
-  const historico = carregarHistorico();
-  const item = historico.find(h => h.id === id);
+  const item = obterItemHistorico(id);
   if (!item) return;
 
   document.getElementById('logConteudo').textContent =
@@ -538,12 +751,420 @@ Data: ${item.data}
 
 ${item.texto}`;
 
-  document.getElementById('logModal').style.display = 'flex';
+  const status = item.driveStatus || 'pendente';
+  const textos = {
+    ok: '☁️ Enviado ao Google Drive',
+    enviando: '⏳ Enviando para o Google Drive...',
+    erro: '⚠️ Falha ao enviar ao Google Drive.',
+    pendente: 'Ainda não enviado ao Google Drive.'
+  };
+
+  document.getElementById('logDriveArea').innerHTML = `
+    <span>${textos[status] || textos.pendente}</span>
+    ${status !== 'enviando' ? `<button class="btn-icon" onclick="enviarParaDrive(${item.id})">${status === 'ok' ? 'Reenviar' : 'Enviar ao Drive'}</button>` : ''}
+  `;
+
+  const modal = document.getElementById('logModal');
+  modal.dataset.itemId = id;
+  modal.style.display = 'flex';
+
+  if (window.innerWidth <= 860) toggleSidebar(false);
 }
 
 function fecharLog(event) {
   if (!event || event.target.id === 'logModal') {
     document.getElementById('logModal').style.display = 'none';
+  }
+}
+
+// ---- Menu lateral (mobile) ----
+
+function toggleSidebar(forcarEstado) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const abrir = typeof forcarEstado === 'boolean' ? forcarEstado : !sidebar.classList.contains('open');
+
+  sidebar.classList.toggle('open', abrir);
+  backdrop.classList.toggle('open', abrir);
+}
+
+// ---- Tema claro/escuro ----
+
+function aplicarTema(tema) {
+  document.documentElement.setAttribute('data-theme', tema);
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) btn.textContent = tema === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  const atual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, atual);
+  aplicarTema(atual);
+}
+
+function initTheme() {
+  const salvo = localStorage.getItem(THEME_KEY);
+  const preferido = salvo || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  aplicarTema(preferido);
+}
+
+// ---- Integração com o Google Drive ----
+
+function clienteConfigurado() {
+  return GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith('SEU_CLIENT_ID');
+}
+
+function garantirTokenClient() {
+  if (gTokenClient || !window.google || !clienteConfigurado()) return gTokenClient;
+
+  gTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: GOOGLE_DRIVE_SCOPE,
+    callback: () => {}
+  });
+
+  return gTokenClient;
+}
+
+function tokenValido() {
+  return !!gAccessToken && Date.now() < gTokenExpiry - 30000;
+}
+
+// Guarda o token em sessionStorage: sobrevive a um F5 na mesma aba, mas some
+// ao fechar a aba/navegador (evita manter a credencial indefinidamente).
+function salvarSessaoDrive() {
+  if (!gAccessToken || !gTokenExpiry) return;
+
+  try {
+    sessionStorage.setItem(DRIVE_SESSION_KEY, JSON.stringify({
+      accessToken: gAccessToken,
+      expiresAt: gTokenExpiry,
+      logFileId: gLogFileId
+    }));
+  } catch (e) {
+    // modo privado / quota do navegador — segue sem persistir
+  }
+}
+
+function carregarSessaoDrive() {
+  try {
+    const bruto = sessionStorage.getItem(DRIVE_SESSION_KEY);
+    if (!bruto) return null;
+
+    const dados = JSON.parse(bruto);
+    if (!dados || !dados.accessToken || !dados.expiresAt) return null;
+    if (dados.expiresAt - DRIVE_TOKEN_SAFETY_MARGIN_MS <= Date.now()) return null;
+
+    return dados;
+  } catch (e) {
+    return null;
+  }
+}
+
+function limparSessaoDrive() {
+  try { sessionStorage.removeItem(DRIVE_SESSION_KEY); } catch (e) {}
+}
+
+// Chamar quando a API do Drive responder 401: o token guardado não serve
+// mais (foi revogado, por exemplo), então descarta tudo e pede reconexão.
+function tratarTokenDriveInvalido() {
+  gAccessToken = null;
+  gTokenExpiry = 0;
+  limparSessaoDrive();
+  atualizarStatusDrive('desconectado');
+}
+
+function obterAccessToken(interativo) {
+  return new Promise((resolve, reject) => {
+    if (tokenValido()) { resolve(gAccessToken); return; }
+    if (!clienteConfigurado()) { reject(new Error('GOOGLE_CLIENT_ID não configurado')); return; }
+
+    const client = garantirTokenClient();
+    if (!client) { reject(new Error('API do Google ainda não carregou')); return; }
+
+    client.callback = (resp) => {
+      if (resp.error) { limparSessaoDrive(); reject(resp); return; }
+
+      gAccessToken = resp.access_token;
+      gTokenExpiry = Date.now() + (resp.expires_in * 1000);
+      driveConectado = true;
+      localStorage.setItem(DRIVE_FLAG_KEY, '1');
+      atualizarStatusDrive('conectado');
+      salvarSessaoDrive();
+      sincronizarDoDrive();
+      resolve(gAccessToken);
+    };
+
+    client.requestAccessToken({ prompt: interativo ? 'consent' : '' });
+  });
+}
+
+function conectarDrive() {
+  if (!clienteConfigurado()) {
+    alert('Antes de conectar, configure a constante GOOGLE_CLIENT_ID no código-fonte (veja as instruções no README).');
+    return;
+  }
+
+  obterAccessToken(true).catch(err => {
+    console.error('Erro ao conectar ao Google Drive', err);
+    atualizarStatusDrive('erro');
+  });
+}
+
+function atualizarStatusDrive(status) {
+  const dot = document.getElementById('drive-status-dot');
+  const texto = document.getElementById('drive-status-text');
+  const btn = document.getElementById('btn-drive-connect');
+  const syncBtn = document.getElementById('btn-drive-sync');
+  if (!dot || !texto) return;
+
+  dot.className = 'dot ' + status;
+
+  if (status === 'conectado') {
+    texto.textContent = 'Drive conectado';
+    if (btn) btn.textContent = 'Reconectar';
+    if (syncBtn) syncBtn.style.display = 'block';
+  } else if (status === 'erro') {
+    texto.textContent = 'Erro ao conectar';
+    if (btn) btn.textContent = 'Tentar novamente';
+    if (syncBtn) syncBtn.style.display = 'none';
+  } else {
+    texto.textContent = 'Drive desconectado';
+    if (btn) btn.textContent = 'Conectar Google Drive';
+    if (syncBtn) syncBtn.style.display = 'none';
+  }
+}
+
+// ---- Arquivo único de histórico no Drive ----
+
+let gLogFileId = null;
+
+function formatarBlocoChamado(item) {
+  return `ID: ${item.id}\nTipo: ${item.tipo}\nE-mail: ${item.email}\nData: ${item.data}\n\n${item.texto}`;
+}
+
+async function obterOuCriarArquivoLog(token) {
+  if (gLogFileId) return gLogFileId;
+
+  const idSalvo = localStorage.getItem(DRIVE_LOG_FILE_ID_KEY);
+  if (idSalvo) {
+    const check = await fetch(`https://www.googleapis.com/drive/v3/files/${idSalvo}?fields=id,trashed`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (check.ok) {
+      const info = await check.json();
+      if (!info.trashed) {
+        gLogFileId = idSalvo;
+        salvarSessaoDrive();
+        return gLogFileId;
+      }
+    }
+  }
+
+  const params = new URLSearchParams({
+    q: `name = '${DRIVE_LOG_FILENAME}' and '${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed = false`,
+    fields: 'files(id, name)'
+  });
+
+  const buscaResp = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (buscaResp.ok) {
+    const buscaData = await buscaResp.json();
+    if (buscaData.files && buscaData.files.length > 0) {
+      gLogFileId = buscaData.files[0].id;
+      localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+      salvarSessaoDrive();
+      return gLogFileId;
+    }
+  }
+
+  const metadata = { name: DRIVE_LOG_FILENAME, parents: [GOOGLE_DRIVE_FOLDER_ID], mimeType: 'text/plain' };
+  const boundary = 'chamados-logfile';
+
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n\r\n` +
+    `--${boundary}--`;
+
+  const criaResp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+
+  if (!criaResp.ok) {
+    if (criaResp.status === 401) tratarTokenDriveInvalido();
+    throw new Error('Falha ao criar arquivo de log no Drive: HTTP ' + criaResp.status);
+  }
+
+  const criaData = await criaResp.json();
+  gLogFileId = criaData.id;
+  localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+  salvarSessaoDrive();
+  return gLogFileId;
+}
+
+// ---- Sincronização: puxa do Drive os chamados salvos em outros dispositivos ----
+
+async function sincronizarDoDrive() {
+  const syncBtn = document.getElementById('btn-drive-sync');
+
+  try {
+    const token = await obterAccessToken(false);
+
+    if (syncBtn) syncBtn.textContent = '⏳ Sincronizando...';
+
+    const fileId = await obterOuCriarArquivoLog(token);
+
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!resp.ok) {
+      if (resp.status === 401) tratarTokenDriveInvalido();
+      throw new Error('Falha ao ler arquivo do Drive: HTTP ' + resp.status);
+    }
+
+    const conteudo = await resp.text();
+    if (!conteudo.trim()) return;
+
+    const blocos = conteudo.split(DRIVE_ENTRY_SEPARATOR);
+    const historico = carregarHistorico();
+
+    for (const bloco of blocos) {
+      const m = bloco.match(/^ID: (\d+)\nTipo: (.*)\nE-mail: (.*)\nData: (.*)\n\n([\s\S]*)$/);
+      if (!m) continue;
+
+      const id = Number(m[1]);
+      const existente = historico.find(h => h.id === id);
+
+      if (existente) {
+        existente.driveStatus = 'ok';
+        continue;
+      }
+
+      historico.push({
+        id,
+        tipo: m[2].trim(),
+        email: m[3].trim(),
+        data: m[4].trim(),
+        texto: m[5],
+        driveStatus: 'ok'
+      });
+    }
+
+    historico.sort((a, b) => b.id - a.id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
+    renderHistorico();
+  } catch (err) {
+    console.error('Erro ao sincronizar histórico do Drive', err);
+  } finally {
+    if (syncBtn) syncBtn.textContent = '🔄 Sincronizar histórico';
+  }
+}
+
+function marcarUploadStatus(id, status) {
+  const historico = carregarHistorico();
+  const idx = historico.findIndex(h => h.id === id);
+  if (idx === -1) return;
+
+  historico[idx].driveStatus = status;
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(historico));
+  renderHistorico();
+
+  const modal = document.getElementById('logModal');
+  if (modal.style.display === 'flex' && Number(modal.dataset.itemId) === id) {
+    abrirLog(id);
+  }
+}
+
+// Fila serializa as gravações para evitar que dois envios simultâneos
+// leiam o mesmo conteúdo antigo do arquivo e um sobrescreva o outro.
+let filaGravacaoDrive = Promise.resolve();
+
+function enviarParaDrive(id) {
+  filaGravacaoDrive = filaGravacaoDrive.then(() => enviarParaDriveInterno(id)).catch(() => {});
+  return filaGravacaoDrive;
+}
+
+async function enviarParaDriveInterno(id) {
+  const item = obterItemHistorico(id);
+  if (!item) return;
+
+  marcarUploadStatus(id, 'enviando');
+
+  try {
+    const token = await obterAccessToken(false);
+    const fileId = await obterOuCriarArquivoLog(token);
+
+    const leituraResp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const conteudoAtual = leituraResp.ok ? await leituraResp.text() : '';
+
+    const bloco = formatarBlocoChamado(item);
+    const novoConteudo = conteudoAtual && conteudoAtual.trim()
+      ? conteudoAtual + DRIVE_ENTRY_SEPARATOR + bloco
+      : bloco;
+
+    const updateResp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'text/plain; charset=UTF-8'
+      },
+      body: novoConteudo
+    });
+
+    if (!updateResp.ok) {
+      if (updateResp.status === 401) tratarTokenDriveInvalido();
+      throw new Error('Falha ao atualizar arquivo do Drive: HTTP ' + updateResp.status);
+    }
+
+    marcarUploadStatus(id, 'ok');
+  } catch (err) {
+    console.error('Erro ao enviar chamado para o Drive', err);
+    marcarUploadStatus(id, 'erro');
+  }
+}
+
+function tentarReconexaoSilenciosa() {
+  if (localStorage.getItem(DRIVE_FLAG_KEY) === '1' && clienteConfigurado()) {
+    obterAccessToken(false).catch(() => {});
+  }
+}
+
+// Ao carregar a página, tenta reaproveitar o token salvo em sessionStorage
+// (instantâneo, sem depender do Google) antes de cair no fallback de
+// reconexão silenciosa via GIS — que usa um iframe que navegadores modernos
+// costumam bloquear por causa das restrições a cookies de terceiros.
+function restaurarSessaoOuReconectar() {
+  const sessao = carregarSessaoDrive();
+
+  if (sessao) {
+    gAccessToken = sessao.accessToken;
+    gTokenExpiry = sessao.expiresAt;
+    gLogFileId = sessao.logFileId || null;
+    driveConectado = true;
+    localStorage.setItem(DRIVE_FLAG_KEY, '1');
+    atualizarStatusDrive('conectado');
+    sincronizarDoDrive();
+    return;
+  }
+
+  aguardarGoogleEChamar(tentarReconexaoSilenciosa);
+}
+
+function aguardarGoogleEChamar(fn, tentativas = 20) {
+  if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+    fn();
+  } else if (tentativas > 0) {
+    setTimeout(() => aguardarGoogleEChamar(fn, tentativas - 1), 250);
   }
 }
 
@@ -575,8 +1196,11 @@ document.getElementById('input-chamado').addEventListener('input', function() {
   document.getElementById(id).addEventListener('input', atualizarPreview);
 });
 
+initTheme();
 regenerarSenha();
 renderHistorico();
+atualizarStatusDrive('desconectado');
+restaurarSessaoOuReconectar();
 </script>
 </body>
 </html>
