@@ -552,6 +552,8 @@ const DRIVE_FLAG_KEY = 'chamados_drive_conectado';
 const DRIVE_LOG_FILENAME = 'historico_chamados.txt';
 const DRIVE_LOG_FILE_ID_KEY = 'chamados_drive_log_file_id';
 const DRIVE_ENTRY_SEPARATOR = '\n\n==========\n\n';
+const DRIVE_SESSION_KEY = 'chamados_drive_sessao';
+const DRIVE_TOKEN_SAFETY_MARGIN_MS = 60000;
 
 let currentTab = 'reset';
 let currentSenha = '';
@@ -828,6 +830,50 @@ function tokenValido() {
   return !!gAccessToken && Date.now() < gTokenExpiry - 30000;
 }
 
+// Guarda o token em sessionStorage: sobrevive a um F5 na mesma aba, mas some
+// ao fechar a aba/navegador (evita manter a credencial indefinidamente).
+function salvarSessaoDrive() {
+  if (!gAccessToken || !gTokenExpiry) return;
+
+  try {
+    sessionStorage.setItem(DRIVE_SESSION_KEY, JSON.stringify({
+      accessToken: gAccessToken,
+      expiresAt: gTokenExpiry,
+      logFileId: gLogFileId
+    }));
+  } catch (e) {
+    // modo privado / quota do navegador — segue sem persistir
+  }
+}
+
+function carregarSessaoDrive() {
+  try {
+    const bruto = sessionStorage.getItem(DRIVE_SESSION_KEY);
+    if (!bruto) return null;
+
+    const dados = JSON.parse(bruto);
+    if (!dados || !dados.accessToken || !dados.expiresAt) return null;
+    if (dados.expiresAt - DRIVE_TOKEN_SAFETY_MARGIN_MS <= Date.now()) return null;
+
+    return dados;
+  } catch (e) {
+    return null;
+  }
+}
+
+function limparSessaoDrive() {
+  try { sessionStorage.removeItem(DRIVE_SESSION_KEY); } catch (e) {}
+}
+
+// Chamar quando a API do Drive responder 401: o token guardado não serve
+// mais (foi revogado, por exemplo), então descarta tudo e pede reconexão.
+function tratarTokenDriveInvalido() {
+  gAccessToken = null;
+  gTokenExpiry = 0;
+  limparSessaoDrive();
+  atualizarStatusDrive('desconectado');
+}
+
 function obterAccessToken(interativo) {
   return new Promise((resolve, reject) => {
     if (tokenValido()) { resolve(gAccessToken); return; }
@@ -837,13 +883,14 @@ function obterAccessToken(interativo) {
     if (!client) { reject(new Error('API do Google ainda não carregou')); return; }
 
     client.callback = (resp) => {
-      if (resp.error) { reject(resp); return; }
+      if (resp.error) { limparSessaoDrive(); reject(resp); return; }
 
       gAccessToken = resp.access_token;
       gTokenExpiry = Date.now() + (resp.expires_in * 1000);
       driveConectado = true;
       localStorage.setItem(DRIVE_FLAG_KEY, '1');
       atualizarStatusDrive('conectado');
+      salvarSessaoDrive();
       sincronizarDoDrive();
       resolve(gAccessToken);
     };
@@ -908,6 +955,7 @@ async function obterOuCriarArquivoLog(token) {
       const info = await check.json();
       if (!info.trashed) {
         gLogFileId = idSalvo;
+        salvarSessaoDrive();
         return gLogFileId;
       }
     }
@@ -927,6 +975,7 @@ async function obterOuCriarArquivoLog(token) {
     if (buscaData.files && buscaData.files.length > 0) {
       gLogFileId = buscaData.files[0].id;
       localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+      salvarSessaoDrive();
       return gLogFileId;
     }
   }
@@ -948,11 +997,15 @@ async function obterOuCriarArquivoLog(token) {
     body
   });
 
-  if (!criaResp.ok) throw new Error('Falha ao criar arquivo de log no Drive: HTTP ' + criaResp.status);
+  if (!criaResp.ok) {
+    if (criaResp.status === 401) tratarTokenDriveInvalido();
+    throw new Error('Falha ao criar arquivo de log no Drive: HTTP ' + criaResp.status);
+  }
 
   const criaData = await criaResp.json();
   gLogFileId = criaData.id;
   localStorage.setItem(DRIVE_LOG_FILE_ID_KEY, gLogFileId);
+  salvarSessaoDrive();
   return gLogFileId;
 }
 
@@ -971,7 +1024,10 @@ async function sincronizarDoDrive() {
     const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!resp.ok) throw new Error('Falha ao ler arquivo do Drive: HTTP ' + resp.status);
+    if (!resp.ok) {
+      if (resp.status === 401) tratarTokenDriveInvalido();
+      throw new Error('Falha ao ler arquivo do Drive: HTTP ' + resp.status);
+    }
 
     const conteudo = await resp.text();
     if (!conteudo.trim()) return;
@@ -1065,7 +1121,10 @@ async function enviarParaDriveInterno(id) {
       body: novoConteudo
     });
 
-    if (!updateResp.ok) throw new Error('Falha ao atualizar arquivo do Drive: HTTP ' + updateResp.status);
+    if (!updateResp.ok) {
+      if (updateResp.status === 401) tratarTokenDriveInvalido();
+      throw new Error('Falha ao atualizar arquivo do Drive: HTTP ' + updateResp.status);
+    }
 
     marcarUploadStatus(id, 'ok');
   } catch (err) {
@@ -1078,6 +1137,27 @@ function tentarReconexaoSilenciosa() {
   if (localStorage.getItem(DRIVE_FLAG_KEY) === '1' && clienteConfigurado()) {
     obterAccessToken(false).catch(() => {});
   }
+}
+
+// Ao carregar a página, tenta reaproveitar o token salvo em sessionStorage
+// (instantâneo, sem depender do Google) antes de cair no fallback de
+// reconexão silenciosa via GIS — que usa um iframe que navegadores modernos
+// costumam bloquear por causa das restrições a cookies de terceiros.
+function restaurarSessaoOuReconectar() {
+  const sessao = carregarSessaoDrive();
+
+  if (sessao) {
+    gAccessToken = sessao.accessToken;
+    gTokenExpiry = sessao.expiresAt;
+    gLogFileId = sessao.logFileId || null;
+    driveConectado = true;
+    localStorage.setItem(DRIVE_FLAG_KEY, '1');
+    atualizarStatusDrive('conectado');
+    sincronizarDoDrive();
+    return;
+  }
+
+  aguardarGoogleEChamar(tentarReconexaoSilenciosa);
 }
 
 function aguardarGoogleEChamar(fn, tentativas = 20) {
@@ -1120,7 +1200,7 @@ initTheme();
 regenerarSenha();
 renderHistorico();
 atualizarStatusDrive('desconectado');
-aguardarGoogleEChamar(tentarReconexaoSilenciosa);
+restaurarSessaoOuReconectar();
 </script>
 </body>
 </html>
